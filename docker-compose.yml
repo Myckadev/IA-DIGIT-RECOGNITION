@@ -18,14 +18,14 @@ services:
     container_name: redis_broker
     ports:
       - "6379:6379"
-    healthcheck: # 🔥 Healthcheck pour Redis
+    healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
 
-  backend:
+  back:
     build: ./back
     container_name: back
     depends_on:
@@ -49,7 +49,7 @@ services:
     command: >
       sh -c "gunicorn --workers=4 --timeout 300 --bind 0.0.0.0:8000 back.wsgi:application"
 
-  celery_worker:
+  celery:
     build: ./back
     container_name: celery
     depends_on:
@@ -65,13 +65,13 @@ services:
       DATABASE_NAME: "digit_recognizer"
       DATABASE_HOST: "db"
       DATABASE_PORT: "27017"
-    entrypoint: ./back/entrypoint.sh
+    entrypoint: /app/entrypoint.sh
 
-  frontend:
+  front:
     build: ./front
     container_name: front
     depends_on:
-      - backend
+      - back
     ports:
       - "3000:80"
 
