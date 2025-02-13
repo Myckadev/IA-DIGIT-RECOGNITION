@@ -474,6 +474,6 @@ wrapt==1.16.0
     #   tensorflow
 yarg==0.1.9
     # via -r requirements.in
-
+gunicorn
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
