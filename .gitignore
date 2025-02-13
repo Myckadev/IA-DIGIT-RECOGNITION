@@ -1,0 +1,11 @@
+.idea/
+back/mnist_*
+back/venv_*
+back/venv*
+back/venv
+# Ignorer les dossiers __pycache__
+__pycache__/
+*.py[cod]
+*.pyc
+back/requirements.in
+he__/
