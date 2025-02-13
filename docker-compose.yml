@@ -65,7 +65,7 @@ services:
       DATABASE_NAME: "digit_recognizer"
       DATABASE_HOST: "db"
       DATABASE_PORT: "27017"
-    command: celery -A back worker --loglevel=info
+    entrypoint: ./back/entrypoint.sh
 
   frontend:
     build: ./front
