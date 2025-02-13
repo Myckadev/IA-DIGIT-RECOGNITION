@@ -1,14 +1,12 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
-import Canva from "./components/Canva";
+import CaptchaWrapper from "./components/CaptchaWrapper";
 
-function App() {
+export default function App() {
   return (
     <div className="App">
-     <Canva />
+     <CaptchaWrapper />
     </div>
   );
 }
 
-export default App;

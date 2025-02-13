@@ -1,7 +1,7 @@
 services:
   db:
     image: mongo:8
-    container_name: mongo_db
+    container_name: mongo
     volumes:
       - mongo_data:/data/db
     ports:
@@ -27,7 +27,7 @@ services:
 
   backend:
     build: ./back
-    container_name: django_backend
+    container_name: back
     depends_on:
       db:
         condition: service_healthy
@@ -51,10 +51,12 @@ services:
 
   celery_worker:
     build: ./back
-    container_name: celery_worker
+    container_name: celery
     depends_on:
-      - backend
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./back:/app
     environment:
@@ -67,7 +69,7 @@ services:
 
   frontend:
     build: ./front
-    container_name: react_frontend
+    container_name: front
     depends_on:
       - backend
     ports:
