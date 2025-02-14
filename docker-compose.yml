@@ -27,6 +27,7 @@ services:
 
   back:
     build: ./back
+    image: mljdigitiaacr.azurecr.io/back:latest
     container_name: back
     depends_on:
       db:
@@ -51,6 +52,7 @@ services:
 
   celery:
     build: ./back
+    image: mljdigitiaacr.azurecr.io/celery:latest
     container_name: celery
     depends_on:
       db:
@@ -69,6 +71,7 @@ services:
 
   front:
     build: ./front
+    image: mljdigitiaacr.azurecr.io/front:latest
     container_name: front
     depends_on:
       - back
