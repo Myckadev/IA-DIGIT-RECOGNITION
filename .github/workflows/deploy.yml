@@ -3,7 +3,8 @@ name: Deploy Full Stack to Azure
 on:
   push:
     branches:
-      - main
+      - main  # Déploiement automatique à chaque push sur main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -27,19 +28,24 @@ jobs:
 
       - name: Register Microsoft.DocumentDB if not registered
         run: |
-          if ! az provider show --namespace Microsoft.DocumentDB --query "registrationState" -o tsv | grep -q "Registered"; then
+          echo "Checking if Microsoft.DocumentDB provider is registered..."
+          REGISTRATION_STATE=$(az provider show --namespace Microsoft.DocumentDB --query "registrationState" -o tsv)
+          
+          if [[ "$REGISTRATION_STATE" != "Registered" ]]; then
             echo "Registering Microsoft.DocumentDB provider..."
             az provider register --namespace Microsoft.DocumentDB
+          
             echo "Waiting for registration to complete..."
             while [[ $(az provider show --namespace Microsoft.DocumentDB --query "registrationState" -o tsv) != "Registered" ]]; do
-              echo "Waiting..."
+              echo "Still waiting for registration..."
               sleep 10
             done
+          
             echo "Microsoft.DocumentDB provider registered successfully!"
           else
             echo "Microsoft.DocumentDB provider is already registered."
           fi
-          
+
       - name: Check & Create MongoDB (CosmosDB)
         run: |
           if ! az cosmosdb show --name mlj-digitia-mongo --resource-group mlj-digitia &>/dev/null; then
@@ -49,6 +55,13 @@ jobs:
           else
             echo "MongoDB (CosmosDB) already exists."
           fi
+
+          # Récupérer le endpoint de CosmosDB
+          MONGO_URI=$(az cosmosdb show --name mlj-digitia-mongo --resource-group mlj-digitia --query "documentEndpoint" -o tsv)
+          echo "MongoDB Endpoint: $MONGO_URI"
+
+          # Ajouter aux variables d'environnement pour utilisation ultérieure
+          echo "MONGO_URI=$MONGO_URI" >> $GITHUB_ENV
 
       - name: Check & Create Redis (Azure Cache)
         run: |
@@ -63,7 +76,6 @@ jobs:
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
 
-      # 4️⃣ Build et Push des images Docker
       - name: Build & Push Docker Images
         run: |
           docker-compose build
@@ -80,8 +92,7 @@ jobs:
               --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest \
               --ingress external --target-port 8000 \
               --environment managedEnvironment-mljdigitia-8ada \
-              --env-vars DATABASE_HOST=mlj-digitia-mongo.mongo.cosmos.azure.com \
-                        DATABASE_PORT=27017 \
+              --env-vars DATABASE_HOST=${{ env.MONGO_URI }} DATABASE_PORT=10255 \
                         CELERY_BROKER_URL=redis://mlj-digitia-redis.redis.cache.windows.net:6379/0
           else
             echo "Container App for BACK already exists."
@@ -104,7 +115,8 @@ jobs:
             az containerapp create --name mlj-digitia-celery --resource-group mlj-digitia \
               --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest \
               --environment managedEnvironment-mljdigitia-8ada \
-              --env-vars CELERY_BROKER_URL=redis://mlj-digitia-redis.redis.cache.windows.net:6379/0
+              --env-vars DATABASE_HOST=${{ env.MONGO_URI }} DATABASE_PORT=10255 \
+                        CELERY_BROKER_URL=redis://mlj-digitia-redis.redis.cache.windows.net:6379/0
           else
             echo "Container App for CELERY already exists."
           fi
@@ -114,4 +126,3 @@ jobs:
           az containerapp update --name mlj-digitia --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest
           az containerapp update --name mlj-digitia-front --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/front:latest
           az containerapp update --name mlj-digitia-celery --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest
-
