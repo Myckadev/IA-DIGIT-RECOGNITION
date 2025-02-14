@@ -25,6 +25,21 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Register Microsoft.DocumentDB if not registered
+        run: |
+          if ! az provider show --namespace Microsoft.DocumentDB --query "registrationState" -o tsv | grep -q "Registered"; then
+            echo "Registering Microsoft.DocumentDB provider..."
+            az provider register --namespace Microsoft.DocumentDB
+            echo "Waiting for registration to complete..."
+            while [[ $(az provider show --namespace Microsoft.DocumentDB --query "registrationState" -o tsv) != "Registered" ]]; do
+              echo "Waiting..."
+              sleep 10
+            done
+            echo "Microsoft.DocumentDB provider registered successfully!"
+          else
+            echo "Microsoft.DocumentDB provider is already registered."
+          fi
+          
       - name: Check & Create MongoDB (CosmosDB)
         run: |
           if ! az cosmosdb show --name mlj-digitia-mongo --resource-group mlj-digitia &>/dev/null; then
