@@ -1,10 +1,9 @@
-name: Deploy to Azure Container Apps
+name: Deploy Full Stack to Azure
 
 on:
   push:
     branches:
-      - main  # Exécute le workflow quand on push sur main
-
+      - main
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,32 +25,78 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Check & Create MongoDB (CosmosDB)
+        run: |
+          if ! az cosmosdb show --name mlj-digitia-mongo --resource-group mlj-digitia &>/dev/null; then
+            echo "Creating MongoDB (CosmosDB)..."
+            az cosmosdb create --name mlj-digitia-mongo --resource-group mlj-digitia --kind MongoDB
+            az cosmosdb mongodb database create --account-name mlj-digitia-mongo --resource-group mlj-digitia --name digit_recognizer
+          else
+            echo "MongoDB (CosmosDB) already exists."
+          fi
+
+      - name: Check & Create Redis (Azure Cache)
+        run: |
+          if ! az redis show --name mlj-digitia-redis --resource-group mlj-digitia &>/dev/null; then
+            echo "Creating Redis Cache..."
+            az redis create --name mlj-digitia-redis --resource-group mlj-digitia --location westeurope --sku Basic --vm-size C0
+          else
+            echo "Redis Cache already exists."
+          fi
+
       - name: Log in to Azure Container Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
 
-      - name: Build Docker Images
+      # 4️⃣ Build et Push des images Docker
+      - name: Build & Push Docker Images
         run: |
           docker-compose build
-
-      - name: Push Docker Images to Azure Container Registry
-        run: |
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/front:latest
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest
 
-      - name: Grant Azure Container Apps access to ACR
+      - name: Check & Create Azure Container Apps
         run: |
-          az containerapp registry set \
-            --name mlj-digitia \
-            --resource-group mlj-digitia \
-            --server ${{ secrets.REGISTRY_LOGIN_SERVER }} \
-            --username ${{ secrets.REGISTRY_USERNAME }} \
-            --password ${{ secrets.REGISTRY_PASSWORD }}
+          # BACK
+          if ! az containerapp show --name mlj-digitia --resource-group mlj-digitia &>/dev/null; then
+            echo "Creating container app for BACK..."
+            az containerapp create --name mlj-digitia --resource-group mlj-digitia \
+              --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest \
+              --ingress external --target-port 8000 \
+              --environment managedEnvironment-mljdigitia-8ada \
+              --env-vars DATABASE_HOST=mlj-digitia-mongo.mongo.cosmos.azure.com \
+                        DATABASE_PORT=27017 \
+                        CELERY_BROKER_URL=redis://mlj-digitia-redis.redis.cache.windows.net:6379/0
+          else
+            echo "Container App for BACK already exists."
+          fi
 
+          # FRONT
+          if ! az containerapp show --name mlj-digitia-front --resource-group mlj-digitia &>/dev/null; then
+            echo "Creating container app for FRONT..."
+            az containerapp create --name mlj-digitia-front --resource-group mlj-digitia \
+              --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/front:latest \
+              --ingress external --target-port 80 \
+              --environment managedEnvironment-mljdigitia-8ada
+          else
+            echo "Container App for FRONT already exists."
+          fi
 
-      - name: Deploy to Azure Container Apps
+          # CELERY
+          if ! az containerapp show --name mlj-digitia-celery --resource-group mlj-digitia &>/dev/null; then
+            echo "Creating container app for CELERY..."
+            az containerapp create --name mlj-digitia-celery --resource-group mlj-digitia \
+              --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest \
+              --environment managedEnvironment-mljdigitia-8ada \
+              --env-vars CELERY_BROKER_URL=redis://mlj-digitia-redis.redis.cache.windows.net:6379/0
+          else
+            echo "Container App for CELERY already exists."
+          fi
+
+      - name: Update Azure Container Apps
         run: |
           az containerapp update --name mlj-digitia --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest
           az containerapp update --name mlj-digitia-front --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/front:latest
           az containerapp update --name mlj-digitia-celery --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest
+
