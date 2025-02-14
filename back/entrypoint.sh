@@ -20,4 +20,4 @@ else
 fi
 
 echo "🚀 Starting Celery worker..."
-exec celery -A back worker --loglevel=info
+exec celery -A back worker --loglevel=info --concurrency=1
