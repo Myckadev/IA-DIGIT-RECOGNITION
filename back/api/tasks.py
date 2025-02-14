@@ -115,7 +115,7 @@ def initialize_and_save_model():
         y = np.array(labels)
 
         model = create_model()
-        model.fit(X, y, epochs=5, validation_split=0.2)
+        model.fit(X, y, epochs=16, validation_split=0.3)
 
         model.save('ocr_model_old.h5')
     else:
