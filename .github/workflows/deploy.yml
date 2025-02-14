@@ -18,6 +18,7 @@ jobs:
 
       - name: Install Docker Compose
         run: |
+          set -x
           sudo apt-get update
           sudo apt-get install -y docker-compose
 
@@ -28,20 +29,34 @@ jobs:
 
       - name: Log in to Azure Container Registry
         run: |
+          set -x
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
 
       - name: Build Docker Images
         run: |
+          set -x
           docker-compose build
 
       - name: Push Docker Images to Azure Container Registry
         run: |
+          set -x
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/front:latest
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest
 
+      - name: Grant Azure Container Apps access to ACR
+        run: |
+          set -x
+          az containerapp update \
+            --name mlj-digitia \
+            --resource-group mlj-digitia \
+            --set imageRegistryCredentials[0].server=${{ secrets.REGISTRY_LOGIN_SERVER }} \
+                  imageRegistryCredentials[0].username=${{ secrets.REGISTRY_USERNAME }} \
+                  imageRegistryCredentials[0].password=${{ secrets.REGISTRY_PASSWORD }}
+
       - name: Deploy to Azure Container Apps
         run: |
+          set -x
           az containerapp update --name mlj-digitia --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/back:latest
           az containerapp update --name mlj-digitia-front --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/front:latest
           az containerapp update --name mlj-digitia-celery --resource-group mlj-digitia --image ${{ secrets.REGISTRY_LOGIN_SERVER }}/celery:latest
