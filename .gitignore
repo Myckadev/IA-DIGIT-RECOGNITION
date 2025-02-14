@@ -9,3 +9,4 @@ __pycache__/
 *.pyc
 back/requirements.in
 he__/
+.DS_Store
